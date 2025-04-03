@@ -27,7 +27,6 @@ func main() {
 		ReadTimeout:                  10 * time.Second,
 		WriteTimeout:                 10 * time.Second,
 		IdleTimeout:                  1 * time.Minute,
-		MaxHeaderBytes:               0,
 		TLSNextProto:                 map[string]func(*http.Server, *tls.Conn, http.Handler){},
 		ConnState: func(net.Conn, http.ConnState) {
 			panic("TODO")
