@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
-	"log"
-	"net"
 	"net/http"
 	"time"
 )
@@ -15,6 +13,7 @@ func main() {
 	mux.HandleFunc(
 		"/healthcheck",
 		func(w http.ResponseWriter, r *http.Request) {
+			fmt.Println("ta rodando aqui")
 			fmt.Fprintln(w, "hello, world")
 		},
 	)
@@ -27,16 +26,11 @@ func main() {
 		ReadTimeout:                  10 * time.Second,
 		WriteTimeout:                 10 * time.Second,
 		IdleTimeout:                  1 * time.Minute,
-		TLSNextProto:                 map[string]func(*http.Server, *tls.Conn, http.Handler){},
-		ConnState: func(net.Conn, http.ConnState) {
-			panic("TODO")
-		},
-		ErrorLog: &log.Logger{},
-		BaseContext: func(net.Listener) context.Context {
-			panic("TODO")
-		},
-		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-			panic("TODO")
-		},
+	}
+
+	if err := server.ListenAndServe(); err != nil {
+		if !errors.Is(err, http.ErrServerClosed) {
+			panic(err)
+		}
 	}
 }
