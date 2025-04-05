@@ -8,19 +8,34 @@ import (
 	"time"
 )
 
+func log(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		begin := time.Now()
+		next.ServeHTTP(w, r)
+		fmt.Println(r.URL.String(), r.Method, time.Since(begin))
+	})
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc(
-		"/healthcheck",
+		"POST /healthcheck",
 		func(w http.ResponseWriter, r *http.Request) {
-			fmt.Println("ta rodando aqui")
 			fmt.Fprintln(w, "hello, world")
+		},
+	)
+
+	mux.HandleFunc(
+		"POST /api/users/{id}",
+		func(w http.ResponseWriter, r *http.Request) {
+			id := r.PathValue("id")
+			fmt.Fprintln(w, id)
 		},
 	)
 
 	server := &http.Server{
 		Addr:                         ":8080",
-		Handler:                      mux,
+		Handler:                      log(mux),
 		DisableGeneralOptionsHandler: false,
 		TLSConfig:                    &tls.Config{},
 		ReadTimeout:                  10 * time.Second,
