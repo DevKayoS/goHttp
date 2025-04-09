@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	middleware_project "goHttp/internal/middleware"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -38,7 +40,7 @@ func main() {
 		r.Use(middleware_project.JsonMiddleware)
 
 		r.Get("/users/{id:[0-9]}", handleGetUsers(db))
-		r.Post("/users", handlePostUsers)
+		r.Post("/users", handlePostUsers(db))
 	})
 
 	r.Route("/api", func(r chi.Router) {
@@ -81,18 +83,44 @@ func handleGetUsers(db map[int64]User) http.HandlerFunc {
 		}
 
 		user, ok := db[id]
-		if ok {
-			data, err := json.Marshal(user)
-
-			if err != nil {
-				panic(err)
-			}
-
-			w.Write(data)
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error":"usuario nao encontrado"}`))
+			return
 		}
+
+		data, err := json.Marshal(user)
+		if err != nil {
+			http.Error(w, "Something went wrong", http.StatusInternalServerError)
+			return
+		}
+
+		w.Write(data)
 	}
 }
 
-func handlePostUsers(w http.ResponseWriter, r *http.Request) {
+func handlePostUsers(db map[int64]User) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1000)
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			var maxErr *http.MaxBytesError
+			if errors.As(err, &maxErr) {
+				http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			fmt.Println(err)
+			http.Error(w, "Something went wrong", http.StatusInternalServerError)
+		}
 
+		var user User
+		if err := json.Unmarshal(data, &user); err != nil {
+			http.Error(w, "Invalid body", http.StatusUnprocessableEntity)
+			return
+		}
+
+		db[user.Id] = user
+
+		w.WriteHeader(http.StatusCreated)
+	}
 }
