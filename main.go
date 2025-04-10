@@ -20,6 +20,28 @@ type User struct {
 	Password string `json:"-"`
 }
 
+type Response struct {
+	Error string `json:"error,omitempty"`
+	Data  any    `json:"data,omitempty"`
+}
+
+func sendJson(w http.ResponseWriter, resp Response, status int) {
+	data, err := json.Marshal(resp)
+	if err != nil {
+		fmt.Println("erro ao fazer marshak de json: ", err)
+		sendJson(w, Response{Error: "something went wrong"}, http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(status)
+	if _, err := w.Write(data); err != nil {
+		fmt.Println("error ao enviar a resposta: ", err)
+		return
+	}
+
+	fmt.Println("oq eu to enviando", data)
+}
+
 func main() {
 	r := chi.NewMux()
 
@@ -39,7 +61,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware_project.JsonMiddleware)
 
-		r.Get("/users/{id:[0-9]}", handleGetUsers(db))
+		r.Get("/users/{id:[0-9]+}", handleGetUsers(db))
 		r.Post("/users", handlePostUsers(db))
 	})
 
@@ -84,18 +106,11 @@ func handleGetUsers(db map[int64]User) http.HandlerFunc {
 
 		user, ok := db[id]
 		if !ok {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(`{"error":"usuario nao encontrado"}`))
+			sendJson(w, Response{Error: "usuario nao encontrado"}, http.StatusNotFound)
 			return
 		}
 
-		data, err := json.Marshal(user)
-		if err != nil {
-			http.Error(w, "Something went wrong", http.StatusInternalServerError)
-			return
-		}
-
-		w.Write(data)
+		sendJson(w, Response{Data: user}, http.StatusOK)
 	}
 }
 
@@ -106,21 +121,21 @@ func handlePostUsers(db map[int64]User) http.HandlerFunc {
 		if err != nil {
 			var maxErr *http.MaxBytesError
 			if errors.As(err, &maxErr) {
-				http.Error(w, "body too large", http.StatusRequestEntityTooLarge)
+				sendJson(w, Response{Error: "body too large"}, http.StatusRequestEntityTooLarge)
 				return
 			}
 			fmt.Println(err)
-			http.Error(w, "Something went wrong", http.StatusInternalServerError)
+			sendJson(w, Response{Error: "Something went wrong"}, http.StatusInternalServerError)
 		}
 
 		var user User
 		if err := json.Unmarshal(data, &user); err != nil {
-			http.Error(w, "Invalid body", http.StatusUnprocessableEntity)
+			sendJson(w, Response{Error: "Invalid body"}, http.StatusUnprocessableEntity)
 			return
 		}
 
 		db[user.Id] = user
 
-		w.WriteHeader(http.StatusCreated)
+		sendJson(w, Response{Data: user}, http.StatusCreated)
 	}
 }
