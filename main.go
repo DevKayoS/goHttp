@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	middleware_project "goHttp/internal/middleware"
 	"io"
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -28,21 +32,29 @@ type Response struct {
 func sendJson(w http.ResponseWriter, resp Response, status int) {
 	data, err := json.Marshal(resp)
 	if err != nil {
-		fmt.Println("erro ao fazer marshak de json: ", err)
+		slog.Error("erro ao fazer marshal de json", "error", err)
 		sendJson(w, Response{Error: "something went wrong"}, http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(status)
 	if _, err := w.Write(data); err != nil {
-		fmt.Println("error ao enviar a resposta: ", err)
+		slog.Error("erro ao enviar a resposta", "error", err)
 		return
 	}
-
-	fmt.Println("oq eu to enviando", data)
 }
 
 func main() {
+	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	slog.SetDefault(log)
+	slog.Info("Servico sendo iniciado", "version", "1.0.0")
+	log.LogAttrs(context.Background(), slog.LevelInfo, "tivemos um http request",
+		slog.String("method", http.MethodDelete),
+		slog.Duration("time_taken", time.Second),
+		slog.String("user_agent", "agent"),
+		slog.Int("statu", http.StatusOK),
+	)
+
 	r := chi.NewMux()
 
 	r.Use(middleware.Recoverer)
@@ -124,7 +136,8 @@ func handlePostUsers(db map[int64]User) http.HandlerFunc {
 				sendJson(w, Response{Error: "body too large"}, http.StatusRequestEntityTooLarge)
 				return
 			}
-			fmt.Println(err)
+
+			slog.Error("falha ao ler json do usuario", "error", err)
 			sendJson(w, Response{Error: "Something went wrong"}, http.StatusInternalServerError)
 		}
 
